@@ -1,0 +1,4 @@
+# Example of terraform variables defined in the .tfvars file
+project_id = "example-project"
+region = "us-central1"
+zone = "us-central1-a"
