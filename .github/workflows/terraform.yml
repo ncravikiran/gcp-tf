@@ -2,9 +2,13 @@ name: Terraform (GCP)
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
   TF_WORKING_DIR: gcp-simple-infra
