@@ -97,7 +97,7 @@ jobs:
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init
 
       - name: Terraform plan (rebuild plan for exact match)
-        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -out=tfpla
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -out=tfplan
 
       - name: Terraform apply
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" apply -auto-approve tfplan
