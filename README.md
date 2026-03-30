@@ -17,4 +17,8 @@ Run the following commands to initialize and apply the Terraform configurations:
 ```bash
 terraform init
 terraform apply
+
+terraform plan -out=tfplan
+terraform apply tfplan
+
 ```
