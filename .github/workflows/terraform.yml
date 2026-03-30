@@ -90,8 +90,11 @@ jobs:
       - name: Authenticate GCP
         uses: google-github-actions/auth@v1
         with:
-          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Terraform init (apply job)
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init
 
       - name: Terraform apply
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" apply -auto-approve tfplan
