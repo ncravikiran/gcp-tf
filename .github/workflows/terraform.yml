@@ -93,8 +93,11 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Terraform init (apply job)
+      - name: Terraform init
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init
+
+      - name: Terraform plan (rebuild plan for exact match)
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -out=tfpla
 
       - name: Terraform apply
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" apply -auto-approve tfplan
