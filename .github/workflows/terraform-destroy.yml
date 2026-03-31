@@ -10,6 +10,7 @@ permissions:
 env:
   TF_WORKING_DIR: gcp-simple-infra
   TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
 
 jobs:
   destroy:
@@ -27,6 +28,20 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Ensure GCS backend bucket exists
+        run: |
+          if [ -z "${TF_STATE_BUCKET}" ]; then
+            echo "TF_STATE_BUCKET is not set" >&2
+            exit 1
+          fi
+          if ! gsutil ls "gs://${TF_STATE_BUCKET}" >/dev/null 2>&1; then
+            echo "Creating backend bucket: ${TF_STATE_BUCKET}"
+            gsutil mb -l "${GCP_REGION}" "gs://${TF_STATE_BUCKET}"
+          else
+            echo "Backend bucket already exists: ${TF_STATE_BUCKET}"
+          fi
+        shell: bash
 
       - name: Terraform init
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -backend-config="bucket=${{ env.TF_STATE_BUCKET }}"
