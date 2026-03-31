@@ -9,6 +9,7 @@ permissions:
 
 env:
   TF_WORKING_DIR: gcp-simple-infra
+  TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
 
 jobs:
   destroy:
@@ -28,7 +29,7 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Terraform init
-        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -backend-config="bucket=${{ env.TF_STATE_BUCKET }}"
 
       - name: Terraform destroy
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" destroy -auto-approve

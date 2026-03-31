@@ -12,6 +12,7 @@ permissions:
 
 env:
   TF_WORKING_DIR: gcp-simple-infra
+  TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
   GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
   GCP_REGION: ${{ secrets.GCP_REGION }}
   GCP_ZONE: ${{ secrets.GCP_ZONE }}
@@ -64,7 +65,7 @@ jobs:
           gcloud config set compute/zone "${{ secrets.GCP_ZONE }}"
 
       - name: Terraform init (state, backend)
-        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -backend-config="bucket=${{ env.TF_STATE_BUCKET }}"
 
       - name: Terraform plan
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -out=tfplan
@@ -94,7 +95,7 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Terraform init
-        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -backend-config="bucket=${{ env.TF_STATE_BUCKET }}"
 
       - name: Terraform plan (rebuild plan for exact match)
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -out=tfplan
