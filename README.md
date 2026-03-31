@@ -16,6 +16,8 @@ This repository now uses a GCS backend for Terraform state. Set the GitHub secre
 
 The workflow will create the backend bucket automatically if it does not already exist, and later runs will reuse the same state file from that bucket.
 
+This setup uses GitHub Actions OIDC via `google-github-actions/auth` and workload identity federation, so no long-lived service account key file is required.
+
 Run the following commands to initialize and apply the Terraform configurations:
 
 ```bash
