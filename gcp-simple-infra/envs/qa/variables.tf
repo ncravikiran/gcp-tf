@@ -33,6 +33,11 @@ variable "vm_name" {
   default     = "my-vm"
 }
 
+variable "vm_machine_type" {
+  description = "type of the VM"
+  type        = string
+}
+
 variable "bucket_name" {
   description = "Name of the storage bucket"
   type        = string
