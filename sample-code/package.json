@@ -1,0 +1,10 @@
+{
+    "name": "hellow-world-app",
+    "version": "2.9.0",
+    "description": "Declarative API exposing platform native touch and gesture system to React Native",
+    "main": "app.js",
+    "scripts": {
+        "start": "node app.js"
+
+    }
+}
