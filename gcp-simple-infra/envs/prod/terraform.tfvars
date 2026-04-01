@@ -1,0 +1,5 @@
+project_id = "project-9cb824fe-f85e-4763-8bb"
+vpc_name    = "prod-vpc"
+subnet_name = "prod-subnet"
+vm_name     = "prod-vm"
+bucket_name = "prod-bucket-test-rk"

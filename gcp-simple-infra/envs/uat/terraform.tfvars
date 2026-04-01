@@ -1,0 +1,5 @@
+project_id = "project-9cb824fe-f85e-4763-8bb"
+vpc_name    = "uat-vpc"
+subnet_name = "uat-subnet"
+vm_name     = "uat-vm"
+bucket_name = "uat-bucket-test-rk"
