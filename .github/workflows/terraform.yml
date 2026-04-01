@@ -1,4 +1,4 @@
-name: Terraform (GCP)
+name: Terraform (QA)
 
 on:
   push:

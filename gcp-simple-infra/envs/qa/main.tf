@@ -6,12 +6,12 @@ module "networking" {
 }
 
 module "compute" {
-  source       = "../../modules/compute"
-  vm_name      = var.vm_name
+  source          = "../../modules/compute"
+  vm_name         = var.vm_name
   vm_machine_type = var.vm_machine_type
-  zone         = var.zone
-  network_name = module.networking.network_name
-  subnet_name  = module.networking.subnet_name
+  zone            = var.zone
+  network_name    = module.networking.network_name
+  subnet_name     = module.networking.subnet_name
 
   metadata_startup_script = file("${path.module}/startup-script.sh")
 }
