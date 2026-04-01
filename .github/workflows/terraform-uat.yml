@@ -1,4 +1,4 @@
-name: Terraform (GCP)
+name: Terraform (UAT)
 
 on:
   push:
