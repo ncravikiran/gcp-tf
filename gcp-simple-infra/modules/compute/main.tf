@@ -17,6 +17,4 @@ resource "google_compute_instance" "vm" {
       // Public IP
     }
   }
-
-  metadata_startup_script = file("${path.module}/startup-script.sh")
 }
