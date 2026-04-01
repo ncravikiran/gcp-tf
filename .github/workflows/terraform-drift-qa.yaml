@@ -1,0 +1,53 @@
+name: Terraform Drift Detection (PROD)
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # Every 6 hours
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_WORKING_DIR: terraform/envs/qa
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  GCP_ZONE: ${{ secrets.GCP_ZONE }}
+  GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/qa'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: "1.14.7"
+
+    - name: Authenticate to GCP
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+        service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+    - name: Terraform Init
+      run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false
+
+    - name: Terraform Plan (Drift Detection)
+      run: |
+        terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -detailed-exitcode -no-color -out=tfplan
+      continue-on-error: true
+
+    - name: Detect Drift & Fail If Found
+      run: |
+        if [ "$?" == "2" ]; then
+          echo "❗ DRIFT DETECTED IN PROD"
+          exit 1
+        else
+          echo "✔ No drift detected"
+        fi
