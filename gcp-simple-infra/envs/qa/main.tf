@@ -13,7 +13,6 @@ module "compute" {
   network_name    = module.networking.network_name
   subnet_name     = module.networking.subnet_name
 
-  metadata_startup_script = file("${path.module}/startup-script.sh")
 }
 
 module "storage" {
