@@ -84,4 +84,8 @@ echo "Node version: $(node --version)"
 echo "NPM version: $(npm --version)"
 pm2 status
 
+sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sudo sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+
 echo "===== QA VM startup script completed successfully ====="
