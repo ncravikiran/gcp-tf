@@ -18,6 +18,11 @@ resource "google_compute_instance" "vm" {
     }
   }
   metadata_startup_script = var.startup_script
+
+service_account {
+  email  = google_service_account.vm_sa.email
+  scopes = ["cloud-platform"]
+}
 }
 
 resource "google_service_account" "vm_sa" {
