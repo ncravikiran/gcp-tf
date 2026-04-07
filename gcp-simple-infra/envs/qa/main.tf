@@ -8,6 +8,7 @@ module "networking" {
 module "compute" {
   source          = "../../modules/compute"
   vm_name         = var.vm_name
+  project_id      = var.project_id
   vm_machine_type = var.vm_machine_type
   zone            = var.zone
   network_name    = module.networking.network_name
