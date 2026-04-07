@@ -31,6 +31,7 @@ resource "google_service_account" "vm_sa" {
 }
 
 resource "google_project_iam_member" "vm_sa_secret_access" {
-  role   = "roles/secretmanager.secretAccessor"
-  member = "serviceAccount:${google_service_account.vm_sa.email}"
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.vm_sa.email}"
 }
