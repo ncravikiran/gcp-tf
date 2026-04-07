@@ -19,3 +19,8 @@ resource "google_compute_instance" "vm" {
   }
   metadata_startup_script = var.startup_script
 }
+
+resource "google_service_account" "vm_sa" {
+  account_id   = "vm-secret-accessor"
+  display_name = "VM Secret Manager Accessor"
+}
