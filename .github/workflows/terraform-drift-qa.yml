@@ -2,7 +2,7 @@ name: Terraform Drift Detection (qa)
 
 on:
   schedule:
-    - cron: "0 */1 * * *"   # Every 6 hours
+    - cron: "0 */2 * * *"   # Every 2 hours
   workflow_dispatch:
 
 permissions:
@@ -22,40 +22,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: "1.14.7"
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.14.7"
 
-    - name: Authenticate GCP
-      uses: google-github-actions/auth@v1
-      with:
-        workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+      - name: Authenticate GCP
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
 
-     - name: Configure gcloud
-      run: |
-        gcloud config set project "${{ secrets.GCP_PROJECT }}"
-        gcloud config set compute/region "${{ secrets.GCP_REGION }}"
-         gcloud config set compute/zone "${{ secrets.GCP_ZONE }}"
-         
-    - name: Terraform init (state, backend)
-      run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false -migrate-state
+      - name: Configure gcloud
+        run: |
+          gcloud config set project "${{ secrets.GCP_PROJECT }}"
+          gcloud config set compute/region "${{ secrets.GCP_REGION }}"
+          gcloud config set compute/zone "${{ secrets.GCP_ZONE }}"
 
-    - name: Terraform Plan (Drift Detection)
-      run: |
-        set +e
-        terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -detailed-exitcode -no-color
-        echo "exitcode=$?" >> $GITHUB_OUTPUT
-        set -e
+      - name: Terraform init (state, backend)
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false -migrate-state
 
-    - name: Detect Drift & Fail If Found
-      run: |
-        if [ "${{ steps.drift.outputs.exitcode }}" = "2" ]; then
-          echo "❗ DRIFT DETECTED IN QA"
-          exit 1
-        else
-          echo "✔ No drift detected"
-        fi
+      - name: Terraform Plan (Drift Detection)
+        run: |
+          set +e
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -detailed-exitcode -no-color
+          echo "TF_EXIT_CODE=$?" >> $GITHUB_ENV
+          set -e
 
+      - name: Detect Drift & Fail If Found
+        run: |
+          if [ "$TF_EXIT_CODE" = "2" ]; then
+            echo "❗ DRIFT DETECTED IN QA"
+            exit 1
+          else
+            echo "✔ No drift detected"
+          fi
