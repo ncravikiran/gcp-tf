@@ -1,0 +1,54 @@
+name: Terraform Destroy (qa)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: "Type 'destroy-qa' to confirm Terraform destroy"
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_WORKING_DIR: gcp-simple-infra/envs/qa
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  GCP_ZONE: ${{ secrets.GCP_ZONE }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+concurrency:
+  group: terraform-qa
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "destroy-qa" ]; then
+            echo "❌ Destroy not confirmed. Aborting."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.14.7"
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Terraform Init
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false
+
+      - name: Terraform Destroy
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" destroy -auto-approve
