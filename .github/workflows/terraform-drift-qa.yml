@@ -14,7 +14,7 @@ env:
   GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
   GCP_REGION: ${{ secrets.GCP_REGION }}
   GCP_ZONE: ${{ secrets.GCP_ZONE }}
-  GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
   GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
 jobs:
@@ -28,14 +28,20 @@ jobs:
       with:
         terraform_version: "1.14.7"
 
-    - name: Authenticate to GCP
+    - name: Authenticate GCP
       uses: google-github-actions/auth@v1
       with:
-        workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+        workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
 
-    - name: Terraform Init
-      run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false
+     - name: Configure gcloud
+      run: |
+        gcloud config set project "${{ secrets.GCP_PROJECT }}"
+        gcloud config set compute/region "${{ secrets.GCP_REGION }}"
+         gcloud config set compute/zone "${{ secrets.GCP_ZONE }}"
+         
+    - name: Terraform init (state, backend)
+      run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false -migrate-state
 
     - name: Terraform Plan (Drift Detection)
       run: |
@@ -43,7 +49,6 @@ jobs:
         terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -detailed-exitcode -no-color
         echo "exitcode=$?" >> $GITHUB_OUTPUT
         set -e
-
 
     - name: Detect Drift & Fail If Found
       run: |
