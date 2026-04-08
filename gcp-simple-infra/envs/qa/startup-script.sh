@@ -26,13 +26,11 @@ fi
 # -----------------------------
 # Create Linux user from Secret Manager
 # -----------------------------
-echo "Fetching secrets from Secret Manager..."
+echo "Fetching VM user secrets..."
 
 USERNAME=$(gcloud secrets versions access latest --secret="${ENV}-vm-username")
 PASSWORD=$(gcloud secrets versions access latest --secret="${ENV}-vm-password")
 SSH_KEY=$(gcloud secrets versions access latest --secret="${ENV}-vm-ssh-public-key")
-
-echo "Creating user: $USERNAME"
 
 if ! id "$USERNAME" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$USERNAME"
@@ -46,6 +44,24 @@ chmod 600 /home/$USERNAME/.ssh/authorized_keys
 chown -R $USERNAME:$USERNAME /home/$USERNAME/.ssh
 
 echo "✅ QA user $USERNAME created (password + SSH enabled)"
+
+# Enable SSH password auth (QA ONLY)
+sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+systemctl restart sshd
+
+# -----------------------------
+# Fetch DB secrets (MUST be BEFORE app start)
+# -----------------------------
+echo "Fetching DB secrets..."
+
+export DB_HOST=$(gcloud secrets versions access latest --secret=qa-db-host)
+export DB_PORT=$(gcloud secrets versions access latest --secret=qa-db-port)
+export DB_NAME=$(gcloud secrets versions access latest --secret=qa-db-name)
+export DB_USER=$(gcloud secrets versions access latest --secret=qa-db-user)
+export DB_PASSWORD=$(gcloud secrets versions access latest --secret=qa-db-password)
+
+echo "✅ DB environment variables exported"
 
 # -----------------------------
 # Install Node.js 18
@@ -69,10 +85,11 @@ cd /opt/app/sample-code
 npm install
 
 # -----------------------------
-# Install & start PM2
+# Install & start PM2 (AFTER env vars)
 # -----------------------------
 npm install -g pm2
 
+pm2 delete gcp-tf-sample-app || true
 pm2 start app.js --name "gcp-tf-sample-app"
 pm2 startup systemd -u root --hp /root
 pm2 save
@@ -84,18 +101,4 @@ echo "Node version: $(node --version)"
 echo "NPM version: $(npm --version)"
 pm2 status
 
-sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-sudo sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-sudo systemctl restart sshd
-
 echo "===== QA VM startup script completed successfully ====="
-
-echo "Fetching DB secrets..."
-
-export DB_HOST=$(gcloud secrets versions access latest --secret=qa-db-host)
-export DB_PORT=$(gcloud secrets versions access latest --secret=qa-db-port)
-export DB_NAME=$(gcloud secrets versions access latest --secret=qa-db-name)
-export DB_USER=$(gcloud secrets versions access latest --secret=qa-db-user)
-export DB_PASSWORD=$(gcloud secrets versions access latest --secret=qa-db-password)
-
-echo "DB environment variables exported"
