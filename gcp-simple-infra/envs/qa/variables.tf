@@ -43,3 +43,23 @@ variable "bucket_name" {
   type        = string
   default     = "my-bucket"
 }
+
+variable "db_instance_name" {
+  type = string
+}
+
+variable "db_name" {
+  type = string
+}
+
+variable "db_user" {
+  type = string
+}
+
+variable "db_password" {
+  type = string
+}
+
+variable "authorized_networks" {
+  type = list(string)
+}
