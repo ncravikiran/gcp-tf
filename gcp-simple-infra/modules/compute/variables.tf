@@ -24,4 +24,4 @@ variable "vm_machine_type" {
 
 variable "startup_script" {
   type = string
-} 
+}
