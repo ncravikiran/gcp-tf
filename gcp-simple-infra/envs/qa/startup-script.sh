@@ -89,3 +89,13 @@ sudo sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/s
 sudo systemctl restart sshd
 
 echo "===== QA VM startup script completed successfully ====="
+
+echo "Fetching DB secrets..."
+
+export DB_HOST=$(gcloud secrets versions access latest --secret=qa-db-host)
+export DB_PORT=$(gcloud secrets versions access latest --secret=qa-db-port)
+export DB_NAME=$(gcloud secrets versions access latest --secret=qa-db-name)
+export DB_USER=$(gcloud secrets versions access latest --secret=qa-db-user)
+export DB_PASSWORD=$(gcloud secrets versions access latest --secret=qa-db-password)
+
+echo "DB environment variables exported"
