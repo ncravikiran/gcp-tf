@@ -23,3 +23,15 @@ module "storage" {
   bucket_name = var.bucket_name
   region      = var.region
 }
+
+module "database" {
+  source = "../../modules/database"
+
+  project_id        = var.project_id
+  region            = var.region
+  db_instance_name  = var.db_instance_name
+  db_name           = var.db_name
+  db_user           = var.db_user
+  db_password       = var.db_password
+  authorized_networks = var.authorized_networks
+}
