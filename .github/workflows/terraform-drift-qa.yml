@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  TF_WORKING_DIR: terraform/envs/qa
+  TF_WORKING_DIR: gcp-simple-infra/envs/qa
   GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
   GCP_REGION: ${{ secrets.GCP_REGION }}
   GCP_ZONE: ${{ secrets.GCP_ZONE }}
@@ -20,7 +20,6 @@ env:
 jobs:
   drift-check:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/qa'
 
     steps:
     - uses: actions/checkout@v4
@@ -40,14 +39,18 @@ jobs:
 
     - name: Terraform Plan (Drift Detection)
       run: |
-        terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -detailed-exitcode -no-color -out=tfplan
-      continue-on-error: true
+        set +e
+        terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -detailed-exitcode -no-color
+        echo "exitcode=$?" >> $GITHUB_OUTPUT
+        set -e
+
 
     - name: Detect Drift & Fail If Found
       run: |
-        if [ "$?" == "2" ]; then
-          echo "❗ DRIFT DETECTED IN PROD"
+        if [ "${{ steps.drift.outputs.exitcode }}" = "2" ]; then
+          echo "❗ DRIFT DETECTED IN QA"
           exit 1
         else
           echo "✔ No drift detected"
         fi
+
