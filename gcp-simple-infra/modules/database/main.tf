@@ -33,4 +33,8 @@ resource "google_sql_user" "app_user" {
   instance = google_sql_database_instance.postgres.name
   password = var.db_password
   project  = var.project_id
+
+  lifecycle {
+    ignore_changes = [password]
+  }
 }
