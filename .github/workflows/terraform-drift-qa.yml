@@ -1,8 +1,8 @@
-name: Terraform Drift Detection (qa)
+name: Terraform Drift)
 
 on:
   schedule:
-    - cron: "0 */12 * * *"   # Every 12 hours
+    - cron: "0 */12 * * *"
   workflow_dispatch:
 
 permissions:
@@ -11,64 +11,44 @@ permissions:
 
 env:
   TF_WORKING_DIR: gcp-simple-infra/envs/qa
-  GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
-  GCP_REGION: ${{ secrets.GCP_REGION }}
-  GCP_ZONE: ${{ secrets.GCP_ZONE }}
-  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
 jobs:
   drift-check:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+      - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: "1.14.7"
 
-      - name: Authenticate to GCP (Workload Identity)
-        uses: google-github-actions/auth@v1
+      - uses: google-github-actions/auth@v1
         with:
-          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      - name: Configure gcloud
-        run: |
-          gcloud config set project "${{ env.GCP_PROJECT }}"
-          gcloud config set compute/region "${{ env.GCP_REGION }}"
-          gcloud config set compute/zone "${{ env.GCP_ZONE }}"
+      - name: Terraform Init
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false
 
-      - name: Terraform Init (Remote State)
+      # --------------------------------------------------
+      # ✅ DRIFT DETECTION (THE ONLY RELIABLE METHOD)
+      # --------------------------------------------------
+      - name: Terraform Refresh Plan (JSON)
         run: |
-          terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false
-
-      # ============================================================
-      # ✅ DRIFT DETECTION (FIXED)
-      # Uses -refresh-only so provider normalization does NOT hide drift
-      # ============================================================
-      - name: Terraform Drift Detection
-        run: |
-          set +e
           terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
             -refresh-only \
-            -detailed-exitcode \
-            -no-color
-          EXIT_CODE=$?
-          set -e
+            -json > plan.json
 
-          echo "Terraform exit code: $EXIT_CODE"
+      - name: Detect Drift (Parse JSON)
+        run: |
+          CHANGES=$(jq '.resource_changes | length' plan.json)
 
-          if [ "$EXIT_CODE" -eq 2 ]; then
+          echo "Detected resource changes: $CHANGES"
+
+          if [ "$CHANGES" -gt 0 ]; then
             echo "❗ DRIFT DETECTED IN QA"
-            exit 1
-          elif [ "$EXIT_CODE" -eq 1 ]; then
-            echo "❌ Terraform error during drift detection"
             exit 1
           else
             echo "✔ No drift detected in QA"
-            exit 0
           fi
