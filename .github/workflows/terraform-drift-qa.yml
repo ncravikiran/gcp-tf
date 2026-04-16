@@ -87,6 +87,45 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           # Optionally fail the job AFTER reporting, so the summary is visible
           exit 1
+       
+      - name: Parse Drift Details
+        id: drift-details
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          echo "## ⚠️ Drift Detected in QA" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Action | Resource |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|----------|" >> $GITHUB_STEP_SUMMARY
+ 
+          # Terraform plan output uses these symbols:
+          # ~ = update (drift)
+          # + = add
+          # - = destroy
+          # -/+ = replace
+          grep -E '^\s*(~|\+|-|-/\+)\s+resource' plan_output.txt | \
+          while read -r line; do
+            # Extract action symbol and resource address
+            ACTION=$(echo "$line" | grep -oE '~|\+|-/\+|-' | head -1)
+            RESOURCE=$(echo "$line" | grep -oE '"[a-z_]+"(\.[a-z_A-Z0-9]+)+' | tr -d '"')
+ 
+            case $ACTION in
+              "~")    LABEL="🟡 Modified" ;;
+              "+")    LABEL="🟢 Added"    ;;
+              "-")    LABEL="🔴 Destroyed";;
+              "-/+")  LABEL="🔁 Replaced" ;;
+            esac
+ 
+            echo "| $LABEL | \`$RESOURCE\` |" >> $GITHUB_STEP_SUMMARY
+          done
+ 
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Full Plan Output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```hcl' >> $GITHUB_STEP_SUMMARY
+          cat plan_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+         
  
       - name: No Drift
         if: steps.plan.outputs.exitcode == '0'
