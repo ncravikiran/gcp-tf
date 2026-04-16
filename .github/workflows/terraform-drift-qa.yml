@@ -1,4 +1,4 @@
-name: Terraform Drift Detection (qa)
+name Detection (qa)
 
 on:
   schedule:
@@ -32,10 +32,7 @@ jobs:
       - name: Terraform Init
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false -no-color
 
-      # ---------------------------------------------------------
-      # 1. Create refresh-only plan
-      # ---------------------------------------------------------
-      - name: Terraform Refresh Plan
+      - name: Terraform Refresh-Only Plan
         run: |
           terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
             -refresh-only \
@@ -43,48 +40,36 @@ jobs:
             -input=false \
             -no-color
 
-      # ---------------------------------------------------------
-      # 2. Capture raw show output (NOT JSON-safe)
-      # ---------------------------------------------------------
-      - name: Capture Terraform Show Output
+      # ==========================================================
+      # ✅ Canonical JSON extraction (THIS IS THE KEY)
+      # ==========================================================
+      - name: Extract Valid Plan JSON
         run: |
-          terraform -chdir="${{ env.TF_WORKING_DIR }}" show -json tfplan \
-            > raw-output.txt || true
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" show -json tfplan > show.out
 
-      # ---------------------------------------------------------
-      # 3. Extract JSON safely (production hardened)
-      # ---------------------------------------------------------
-      - name: Extract Valid JSON
-        run: |
-          python3 <<'EOF'
-          import json, re, sys
+          python3 <<'PY'
+          import json
 
-          with open("raw-output.txt", "r") as f:
+          with open("show.out", "r") as f:
               data = f.read()
 
-          # Find first JSON object
-          match = re.search(r'\{.*', data, re.S)
-          if not match:
-              print("❌ No JSON object found in terraform output")
-              sys.exit(1)
+          # ✅ Terraform may emit text before/after JSON.
+          # ✅ The LAST JSON object is always the real plan.
+          start = data.rfind("{")
+          if start == -1:
+              raise SystemExit("❌ No JSON object found in terraform output")
 
-          json_text = match.group(0)
-
-          try:
-              parsed = json.loads(json_text)
-          except Exception as e:
-              print("❌ Found JSON but failed to parse:", e)
-              sys.exit(1)
+          plan = json.loads(data[start:])
 
           with open("plan.json", "w") as f:
-              json.dump(parsed, f)
+              json.dump(plan, f)
 
-          print("✅ Valid JSON extracted successfully")
-          EOF
+          print("✅ Valid Terraform plan JSON extracted")
+          PY
 
-      # ---------------------------------------------------------
-      # 4. Detect drift (authoritative)
-      # ---------------------------------------------------------
+      # ==========================================================
+      # ✅ Drift detection (authoritative)
+      # ==========================================================
       - name: Detect Drift
         run: |
           DRIFT_COUNT=$(jq '.resource_changes | length' plan.json)
