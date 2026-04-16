@@ -12,7 +12,6 @@ permissions:
 env:
   TF_WORKING_DIR: gcp-simple-infra/envs/qa
   TF_IN_AUTOMATION: true
-  TF_LOG: ERROR
 
 jobs:
   drift-check:
@@ -31,14 +30,11 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Terraform Init
-        run: |
-          terraform -chdir="${{ env.TF_WORKING_DIR }}" init \
-            -input=false \
-            -no-color
+        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false -no-color
 
-      # ------------------------------------------------------------
-      # 1. Create refresh-only plan (NO stdout noise)
-      # ------------------------------------------------------------
+      # ---------------------------------------------------------
+      # 1. Create refresh-only plan
+      # ---------------------------------------------------------
       - name: Terraform Refresh Plan
         run: |
           terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
@@ -47,30 +43,48 @@ jobs:
             -input=false \
             -no-color
 
-      # ------------------------------------------------------------
-      # 2. Convert plan to STRICT JSON only
-      # ------------------------------------------------------------
-      - name: Convert Plan to JSON
+      # ---------------------------------------------------------
+      # 2. Capture raw show output (NOT JSON-safe)
+      # ---------------------------------------------------------
+      - name: Capture Terraform Show Output
         run: |
-          terraform -chdir="${{ env.TF_WORKING_DIR }}" show \
-            -json tfplan \
-            > plan.json
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" show -json tfplan \
+            > raw-output.txt || true
 
-      # ------------------------------------------------------------
-      # 3. Validate JSON before parsing
-      # ------------------------------------------------------------
-      - name: Validate Plan JSON
+      # ---------------------------------------------------------
+      # 3. Extract JSON safely (production hardened)
+      # ---------------------------------------------------------
+      - name: Extract Valid JSON
         run: |
-          if ! jq empty plan.json; then
-            echo "❌ terraform show did NOT produce valid JSON"
-            echo "---- First 20 lines of output ----"
-            sed -n '1,20p' plan.json
-            exit 1
-          fi
+          python3 <<'EOF'
+          import json, re, sys
 
-      # ------------------------------------------------------------
-      # 4. Detect Drift (authoritative)
-      # ------------------------------------------------------------
+          with open("raw-output.txt", "r") as f:
+              data = f.read()
+
+          # Find first JSON object
+          match = re.search(r'\{.*', data, re.S)
+          if not match:
+              print("❌ No JSON object found in terraform output")
+              sys.exit(1)
+
+          json_text = match.group(0)
+
+          try:
+              parsed = json.loads(json_text)
+          except Exception as e:
+              print("❌ Found JSON but failed to parse:", e)
+              sys.exit(1)
+
+          with open("plan.json", "w") as f:
+              json.dump(parsed, f)
+
+          print("✅ Valid JSON extracted successfully")
+          EOF
+
+      # ---------------------------------------------------------
+      # 4. Detect drift (authoritative)
+      # ---------------------------------------------------------
       - name: Detect Drift
         run: |
           DRIFT_COUNT=$(jq '.resource_changes | length' plan.json)
