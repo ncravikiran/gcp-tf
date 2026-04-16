@@ -1,84 +1,90 @@
-name Detection (qa)
-
+name: Terraform Drift Detection (QA)
+ 
 on:
   schedule:
-    - cron: "0 */12 * * *"
+    - cron: '0 6 * * *'   # daily at 6AM UTC
   workflow_dispatch:
-
+ 
 permissions:
   id-token: write
   contents: read
-
+ 
 env:
   TF_WORKING_DIR: gcp-simple-infra/envs/qa
-  TF_IN_AUTOMATION: true
-
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  GCP_ZONE: ${{ secrets.GCP_ZONE }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+ 
 jobs:
-  drift-check:
+  detect-drift:
+    name: Detect Terraform Drift
     runs-on: ubuntu-latest
-
+ 
     steps:
       - uses: actions/checkout@v4
-
+ 
       - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: "1.14.7"
-
-      - uses: google-github-actions/auth@v1
+ 
+      - name: Authenticate GCP
+        uses: google-github-actions/auth@v1
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Terraform Init
-        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false -no-color
-
-      - name: Terraform Refresh-Only Plan
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+ 
+      - name: Configure gcloud
         run: |
-          terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
-            -refresh-only \
-            -out=tfplan \
+          gcloud config set project ${{ secrets.GCP_PROJECT }}
+          gcloud config set compute/region ${{ secrets.GCP_REGION }}
+          gcloud config set compute/zone ${{ secrets.GCP_ZONE }}
+ 
+      - name: Terraform Init (GCS backend)
+        run: |
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" init \
             -input=false \
-            -no-color
-
-      # ==========================================================
-      # ✅ Canonical JSON extraction (THIS IS THE KEY)
-      # ==========================================================
-      - name: Extract Valid Plan JSON
+            -migrate-state
+ 
+      # KEY POINT: -detailed-exitcode gives us:
+      #   exit 0 → no changes (no drift)
+      #   exit 1 → terraform error (real failure)
+      #   exit 2 → changes detected = DRIFT
+      # Without capturing this, exit 2 would kill the job
+      # and you'd never know WHY it failed.
+      - name: Terraform Plan (Drift Check)
+        id: plan
         run: |
-          terraform -chdir="${{ env.TF_WORKING_DIR }}" show -json tfplan > show.out
-
-          python3 <<'PY'
-          import json
-
-          with open("show.out", "r") as f:
-              data = f.read()
-
-          # ✅ Terraform may emit text before/after JSON.
-          # ✅ The LAST JSON object is always the real plan.
-          start = data.rfind("{")
-          if start == -1:
-              raise SystemExit("❌ No JSON object found in terraform output")
-
-          plan = json.loads(data[start:])
-
-          with open("plan.json", "w") as f:
-              json.dump(plan, f)
-
-          print("✅ Valid Terraform plan JSON extracted")
-          PY
-
-      # ==========================================================
-      # ✅ Drift detection (authoritative)
-      # ==========================================================
-      - name: Detect Drift
-        run: |
-          DRIFT_COUNT=$(jq '.resource_changes | length' plan.json)
-
-          echo "Detected resource changes: $DRIFT_COUNT"
-
-          if [ "$DRIFT_COUNT" -gt 0 ]; then
-            echo "❗ DRIFT DETECTED IN QA"
+          set +e
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
+            -input=false \
+            -detailed-exitcode \
+            -out=tfplan 2>&1 | tee plan_output.txt
+          EXITCODE=${PIPESTATUS[0]}
+          echo "exitcode=$EXITCODE" >> $GITHUB_OUTPUT
+ 
+          if [ $EXITCODE -eq 1 ]; then
+            echo "❌ Terraform plan failed with an error."
             exit 1
+          elif [ $EXITCODE -eq 2 ]; then
+            echo "⚠️ DRIFT DETECTED — infrastructure has changed outside of Terraform."
+            exit 0   # don't fail the job; let the next step report it
           else
-            echo "✔ No drift detected in QA"
+            echo "✅ No drift detected."
           fi
+ 
+      - name: Report Drift
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          echo "### ⚠️ Drift Detected in QA" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat plan_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          # Optionally fail the job AFTER reporting, so the summary is visible
+          exit 1
+ 
+      - name: No Drift
+        if: steps.plan.outputs.exitcode == '0'
+        run: |
+          echo "### ✅ No Drift Detected in QA" >> $GITHUB_STEP_SUMMARY
