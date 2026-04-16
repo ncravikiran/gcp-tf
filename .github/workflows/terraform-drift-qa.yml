@@ -60,9 +60,12 @@ jobs:
           terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
             -input=false \
             -detailed-exitcode \
-            -out=tfplan 2>&1 | tee plan_output.txt
-          EXITCODE=${PIPESTATUS[0]}
+            -out=tfplan > plan_output.txt 2>&1
+          EXITCODE=$?
+          set -e
+          
           echo "exitcode=$EXITCODE" >> $GITHUB_OUTPUT
+          cat plan_output.txt  #still print to Actions log
  
           if [ $EXITCODE -eq 1 ]; then
             echo "❌ Terraform plan failed with an error."
