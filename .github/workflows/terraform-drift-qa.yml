@@ -11,6 +11,8 @@ permissions:
 
 env:
   TF_WORKING_DIR: gcp-simple-infra/envs/qa
+  TF_IN_AUTOMATION: true
+  TF_LOG: ERROR
 
 jobs:
   drift-check:
@@ -29,28 +31,46 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Terraform Init
-        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false
+        run: |
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" init \
+            -input=false \
+            -no-color
 
-      # ---------------------------------------------------------
-      # ✅ STEP 1: Create a refresh-only plan file
-      # ---------------------------------------------------------
+      # ------------------------------------------------------------
+      # 1. Create refresh-only plan (NO stdout noise)
+      # ------------------------------------------------------------
       - name: Terraform Refresh Plan
         run: |
           terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
             -refresh-only \
-            -out=tfplan
+            -out=tfplan \
+            -input=false \
+            -no-color
 
-      # ---------------------------------------------------------
-      # ✅ STEP 2: Convert plan to VALID JSON
-      # ---------------------------------------------------------
+      # ------------------------------------------------------------
+      # 2. Convert plan to STRICT JSON only
+      # ------------------------------------------------------------
       - name: Convert Plan to JSON
         run: |
           terraform -chdir="${{ env.TF_WORKING_DIR }}" show \
-            -json tfplan > plan.json
+            -json tfplan \
+            > plan.json
 
-      # ---------------------------------------------------------
-      # ✅ STEP 3: Detect Drift by parsing JSON
-      # ---------------------------------------------------------
+      # ------------------------------------------------------------
+      # 3. Validate JSON before parsing
+      # ------------------------------------------------------------
+      - name: Validate Plan JSON
+        run: |
+          if ! jq empty plan.json; then
+            echo "❌ terraform show did NOT produce valid JSON"
+            echo "---- First 20 lines of output ----"
+            sed -n '1,20p' plan.json
+            exit 1
+          fi
+
+      # ------------------------------------------------------------
+      # 4. Detect Drift (authoritative)
+      # ------------------------------------------------------------
       - name: Detect Drift
         run: |
           DRIFT_COUNT=$(jq '.resource_changes | length' plan.json)
