@@ -1,4 +1,4 @@
-name: Terraform Drift)
+name: Terraform Drift Detection (qa)
 
 on:
   schedule:
@@ -31,22 +31,33 @@ jobs:
       - name: Terraform Init
         run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false
 
-      # --------------------------------------------------
-      # ✅ DRIFT DETECTION (THE ONLY RELIABLE METHOD)
-      # --------------------------------------------------
-      - name: Terraform Refresh Plan (JSON)
+      # ---------------------------------------------------------
+      # ✅ STEP 1: Create a refresh-only plan file
+      # ---------------------------------------------------------
+      - name: Terraform Refresh Plan
         run: |
           terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
             -refresh-only \
-            -json > plan.json
+            -out=tfplan
 
-      - name: Detect Drift (Parse JSON)
+      # ---------------------------------------------------------
+      # ✅ STEP 2: Convert plan to VALID JSON
+      # ---------------------------------------------------------
+      - name: Convert Plan to JSON
         run: |
-          CHANGES=$(jq '.resource_changes | length' plan.json)
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" show \
+            -json tfplan > plan.json
 
-          echo "Detected resource changes: $CHANGES"
+      # ---------------------------------------------------------
+      # ✅ STEP 3: Detect Drift by parsing JSON
+      # ---------------------------------------------------------
+      - name: Detect Drift
+        run: |
+          DRIFT_COUNT=$(jq '.resource_changes | length' plan.json)
 
-          if [ "$CHANGES" -gt 0 ]; then
+          echo "Detected resource changes: $DRIFT_COUNT"
+
+          if [ "$DRIFT_COUNT" -gt 0 ]; then
             echo "❗ DRIFT DETECTED IN QA"
             exit 1
           else
