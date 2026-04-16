@@ -2,7 +2,7 @@ name: Terraform Drift Detection (qa)
 
 on:
   schedule:
-    - cron: "0 */2 * * *"   # Every 2 hours
+    - cron: "0 */12 * * *"   # Every 12 hours
   workflow_dispatch:
 
 permissions:
@@ -22,13 +22,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: "1.14.7"
 
-      - name: Authenticate GCP
+      - name: Authenticate to GCP (Workload Identity)
         uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -36,25 +38,41 @@ jobs:
 
       - name: Configure gcloud
         run: |
-          gcloud config set project "${{ secrets.GCP_PROJECT }}"
-          gcloud config set compute/region "${{ secrets.GCP_REGION }}"
-          gcloud config set compute/zone "${{ secrets.GCP_ZONE }}"
+          gcloud config set project "${{ env.GCP_PROJECT }}"
+          gcloud config set compute/region "${{ env.GCP_REGION }}"
+          gcloud config set compute/zone "${{ env.GCP_ZONE }}"
 
-      - name: Terraform init (state, backend)
-        run: terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false -migrate-state
+      - name: Terraform Init (Remote State)
+        run: |
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" init -input=false
 
+      #
+      # Run plan and allow exit code 2 without failing the job
+      #
       - name: Terraform Plan (Drift Detection)
+        id: plan
         run: |
-          set +e
-          terraform -chdir="${{ env.TF_WORKING_DIR }}" plan -detailed-exitcode -no-color
-          echo "TF_EXIT_CODE=$?" >> $GITHUB_ENV
-          set -e
+          terraform -chdir="${{ env.TF_WORKING_DIR }}" plan \
+            -detailed-exitcode \
+            -no-color
+        continue-on-error: true
 
-      - name: Detect Drift & Fail If Found
+      #
+      # Interpret terraform exit code
+      #
+      - name: Evaluate Drift Result
         run: |
-          if [ "$TF_EXIT_CODE" = "2" ]; then
-            echo "❗ DRIFT DETECTED IN QA"
+          EXIT_CODE=${{ steps.plan.outcome }}
+
+          if [ "${{ steps.plan.conclusion }}" = "failure" ]; then
+            echo "❌ Terraform error during plan"
             exit 1
-          else
-            echo "✔ No drift detected"
           fi
+
+          if [ "${{ steps.plan.conclusion }}" = "success" ]; then
+            echo "✔ No drift detected in QA"
+            exit 0
+          fi
+
+          echo "❗ DRIFT DETECTED IN QA"
+          exit 1
