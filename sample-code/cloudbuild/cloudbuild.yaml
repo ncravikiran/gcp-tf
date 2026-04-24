@@ -1,0 +1,36 @@
+steps:
+  # 1️⃣ Install dependencies
+  - name: node:18
+    dir: sample-code
+    entrypoint: npm
+    args: ["install"]
+
+  # 2️⃣ Copy app to VM
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud compute scp \
+          --recurse sample-code \
+          tf-vm:/opt/app \
+          --zone=us-west1-a \
+          --quiet
+
+  # 3️⃣ Restart app using PM2
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud compute ssh tf-vm \
+          --zone=us-west1-a \
+          --command="
+            cd /opt/app/sample-code &&
+            pm2 delete gcp-tf-sample-app || true &&
+            pm2 start app.js --name gcp-tf-sample-app &&
+            pm2 save
+          "
+
+options:
+  logging: CLOUD_LOGGING_ONLY
