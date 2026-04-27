@@ -52,28 +52,12 @@ chmod 700 /home/$USERNAME/.ssh
 chmod 600 /home/$USERNAME/.ssh/authorized_keys
 chown -R $USERNAME:$USERNAME /home/$USERNAME/.ssh
  
-# Enable SSH password auth (QA ONLY)
+# FIX: Allow user passwordless sudo (needed for Cloud Build deployment)
+echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+ 
+# Enable SSH password auth
 sed -i -E 's/^#?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 systemctl restart sshd
- 
-# ------------------------------
-# NEW: Add Cloud Build SSH public key to root's authorized_keys
-# Cloud Build will SSH as root to deploy the app
-# ------------------------------
-echo "Adding Cloud Build SSH public key..."
-CLOUDBUILD_SSH_PUB=$(gcloud secrets versions access latest --secret="qa-cloudbuild-ssh-public-key")
- 
-if [[ -z "$CLOUDBUILD_SSH_PUB" ]]; then
-  echo "✗ Cloud Build SSH public key missing"
-  exit 1
-fi
- 
-mkdir -p /root/.ssh
-# Add only if not already present
-grep -qxF "$CLOUDBUILD_SSH_PUB" /root/.ssh/authorized_keys 2>/dev/null || \
-  echo "$CLOUDBUILD_SSH_PUB" >> /root/.ssh/authorized_keys
-chmod 700 /root/.ssh
-chmod 600 /root/.ssh/authorized_keys
  
 # ------------------------------
 # Fetch DB secrets → env file
@@ -99,7 +83,6 @@ DB_PASSWORD=$DB_PASSWORD
 EOF
  
 chmod 600 /opt/app.env
-chown root:root /opt/app.env
  
 # ------------------------------
 # Install Node.js 18
@@ -110,20 +93,16 @@ node --version
 npm --version
  
 # ------------------------------
-# Install PM2 and register as systemd service
+# Install PM2
 # ------------------------------
 npm install -g pm2
 pm2 --version
- 
-# Register PM2 as a systemd service (so it survives reboots)
 pm2 startup systemd -u root --hp /root | tail -n 1 | bash
- 
-# NOTE: pm2 save is NOT called here intentionally.
-# Cloud Build will start the app and call pm2 save after deployment.
  
 # ------------------------------
 # Prepare app directory
 # ------------------------------
 mkdir -p /opt/app
+chown -R $USERNAME:$USERNAME /opt/app
  
-echo "===== VM is ready. Waiting for Cloud Build to deploy the app. ====="
+echo "===== VM is ready. Waiting for Cloud Build to deploy. ====="
