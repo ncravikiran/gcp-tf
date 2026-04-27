@@ -1,6 +1,5 @@
 steps:
  
-  # Single step - deploy via gcloud compute ssh (no key management needed)
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-to-vm'
     entrypoint: 'bash'
@@ -11,33 +10,41 @@ steps:
           --zone=${_VM_ZONE} \
           --tunnel-through-iap \
           --ssh-flag="-o StrictHostKeyChecking=no" \
+          --ssh-flag="-o RequestTTY=force" \
           --command='
             set -e
             echo "===== Deployment started ====="
  
+            # Fix permissions on /opt/app
+            sudo mkdir -p /opt/app
+            sudo chown -R $USER:$USER /opt/app
+ 
+            # Pull latest code
             rm -rf /opt/app
             git clone https://github.com/ncravikiran/gcp-tf.git /opt/app
             cd /opt/app
             git checkout cloud-build
             cd /opt/app/sample-code
  
+            # Install dependencies
             npm install
  
+            # Load env vars and restart app
             set -a
             source /opt/app.env
             set +a
  
-            pm2 delete gcp-tf-sample-app || true
-            pm2 start app.js --name gcp-tf-sample-app
-            pm2 save
+            sudo pm2 delete gcp-tf-sample-app || true
+            sudo pm2 start app.js --name gcp-tf-sample-app
+            sudo pm2 save
  
             echo "===== Deployment complete ====="
-            pm2 status
+            sudo pm2 status
           '
  
 substitutions:
   _VM_NAME: 'YOUR_VM_NAME'
-  _VM_ZONE: 'YOUR_VM_ZONE'   # e.g. us-central1-a
+  _VM_ZONE: 'YOUR_VM_ZONE'
   _VM_USER: 'YOUR_LINUX_USERNAME'
  
 options:
