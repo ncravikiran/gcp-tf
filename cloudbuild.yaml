@@ -1,73 +1,42 @@
 steps:
  
-  # Step 1: Fetch the SSH private key from Secret Manager
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'fetch-ssh-key'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        mkdir -p /root/.ssh
-        gcloud secrets versions access latest \
-          --secret=qa-cloudbuild-ssh-private-key > /root/.ssh/id_rsa
-        chmod 600 /root/.ssh/id_rsa
-        echo "✓ SSH key fetched"
-    volumes:
-      - name: 'ssh'
-        path: /root/.ssh
- 
-  # Step 2: Add VM to known_hosts (avoids StrictHostKeyChecking prompt)
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'scan-known-hosts'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        ssh-keyscan -H ${_VM_IP} >> /root/.ssh/known_hosts
-        echo "✓ VM added to known_hosts"
-    volumes:
-      - name: 'ssh'
-        path: /root/.ssh
- 
-  # Step 3: Deploy app to VM via SSH
+  # Single step - deploy via gcloud compute ssh (no key management needed)
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-to-vm'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        ssh -i /root/.ssh/id_rsa root@${_VM_IP} << 'ENDSSH'
-          set -e
-          echo "===== Cloud Build deployment started on VM ====="
+        gcloud compute ssh root@${_VM_NAME} \
+          --zone=${_VM_ZONE} \
+          --tunnel-through-iap \
+          --command='
+            set -e
+            echo "===== Deployment started ====="
  
-          # Pull latest code
-          rm -rf /opt/app
-          git clone https://github.com/ncravikiran/gcp-tf.git /opt/app
-          cd /opt/app
-          git checkout cloud-build
-          cd /opt/app/sample-code
+            rm -rf /opt/app
+            git clone https://github.com/ncravikiran/gcp-tf.git /opt/app
+            cd /opt/app
+            git checkout cloud-build
+            cd /opt/app/sample-code
  
-          # Install dependencies
-          npm install
+            npm install
  
-          # Source env vars and restart app
-          set -a
-          source /opt/app.env
-          set +a
+            set -a
+            source /opt/app.env
+            set +a
  
-          pm2 delete gcp-tf-sample-app || true
-          pm2 start app.js --name gcp-tf-sample-app
-          pm2 save
+            pm2 delete gcp-tf-sample-app || true
+            pm2 start app.js --name gcp-tf-sample-app
+            pm2 save
  
-          echo "===== Deployment complete ====="
-          pm2 status
-        ENDSSH
-    volumes:
-      - name: 'ssh'
-        path: /root/.ssh
+            echo "===== Deployment complete ====="
+            pm2 status
+          '
  
 substitutions:
-  _VM_IP: '34.169.16.241'   # override this in the trigger
+  _VM_NAME: 'YOUR_VM_NAME'
+  _VM_ZONE: 'YOUR_VM_ZONE'   # e.g. us-central1-a
  
 options:
   logging: CLOUD_LOGGING_ONLY
