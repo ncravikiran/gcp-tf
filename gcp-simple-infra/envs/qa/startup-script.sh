@@ -1,69 +1,79 @@
 #!/bin/bash
 set -e
-
-exec > /var/log/startup 2>&1
+exec > /var/log/startup.log 2>&1
 echo "===== QA VM startup script started ====="
-
 ENV="qa"
-
-# -----------------------------
+ 
+# ------------------------------
 # System setup
-# -----------------------------
-apt update -y
-apt install -y git curl ca-certificates gnupg
-
-# -----------------------------
+# ------------------------------
+apt-get update -y
+apt-get install -y git curl ca-certificates gnupg
+ 
+# ------------------------------
 # Install gcloud if missing
-# -----------------------------
+# ------------------------------
 if ! command -v gcloud >/dev/null 2>&1; then
   echo "Installing Google Cloud SDK..."
   curl https://sdk.cloud.google.com | bash
-  source /root/.bashrc
 fi
-
-# -----------------------------
+ 
+# FIX: Explicitly source gcloud into current shell PATH
+# (sourcing .bashrc doesn't work reliably in non-interactive scripts)
+if [ -f /root/google-cloud-sdk/path.bash.inc ]; then
+  source /root/google-cloud-sdk/path.bash.inc
+fi
+ 
+export PATH=$PATH:/root/google-cloud-sdk/bin
+ 
+# Verify gcloud is available
+if ! command -v gcloud >/dev/null 2>&1; then
+  echo "ERROR: gcloud not found in PATH after install. Aborting."
+  exit 1
+fi
+ 
+# ------------------------------
 # Create Linux user
-# -----------------------------
+# ------------------------------
 USERNAME=$(gcloud secrets versions access latest --secret="${ENV}-vm-username")
 PASSWORD=$(gcloud secrets versions access latest --secret="${ENV}-vm-password")
 SSH_KEY=$(gcloud secrets versions access latest --secret="${ENV}-vm-ssh-public-key")
-
+ 
 if [[ -z "$USERNAME" || -z "$PASSWORD" || -z "$SSH_KEY" ]]; then
-  echo "❌ VM user secrets missing"
+  echo "✗ VM user secrets missing"
   exit 1
 fi
-
+ 
 if ! id "$USERNAME" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$USERNAME"
   echo "$USERNAME:$PASSWORD" | chpasswd
 fi
-
+ 
 mkdir -p /home/$USERNAME/.ssh
 echo "$SSH_KEY" > /home/$USERNAME/.ssh/authorized_keys
 chmod 700 /home/$USERNAME/.ssh
 chmod 600 /home/$USERNAME/.ssh/authorized_keys
 chown -R $USERNAME:$USERNAME /home/$USERNAME/.ssh
-
+ 
 # Enable SSH password auth (QA ONLY)
 sed -i -E 's/^#?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 systemctl restart sshd
-
-# -----------------------------
+ 
+# ------------------------------
 # Fetch DB secrets → env file
-# -----------------------------
+# ------------------------------
 echo "Creating DB env file..."
-
 DB_HOST=$(gcloud secrets versions access latest --secret=qa-db-host)
 DB_PORT=$(gcloud secrets versions access latest --secret=qa-db-port)
 DB_NAME=$(gcloud secrets versions access latest --secret=qa-db-name)
 DB_USER=$(gcloud secrets versions access latest --secret=qa-db-user)
 DB_PASSWORD=$(gcloud secrets versions access latest --secret=qa-db-password)
-
+ 
 if [[ -z "$DB_HOST" || -z "$DB_PORT" || -z "$DB_NAME" || -z "$DB_USER" || -z "$DB_PASSWORD" ]]; then
-  echo "❌ Database secrets missing"
+  echo "✗ Database secrets missing"
   exit 1
 fi
-
+ 
 cat <<EOF > /opt/app.env
 DB_HOST=$DB_HOST
 DB_PORT=$DB_PORT
@@ -71,43 +81,66 @@ DB_NAME=$DB_NAME
 DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
 EOF
-
+ 
 chmod 600 /opt/app.env
 chown root:root /opt/app.env
-
-# -----------------------------
-# Install Node.js
-# -----------------------------
+ 
+# ------------------------------
+# Install Node.js 18
+# ------------------------------
 curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-apt install -y nodejs
-
-# -----------------------------
+apt-get install -y nodejs
+ 
+# Verify node/npm available
+node --version
+npm --version
+ 
+# ------------------------------
 # Deploy app
-# -----------------------------
+# ------------------------------
 rm -rf /opt/app
 git clone https://github.com/ncravikiran/gcp-tf.git /opt/app
-cd /opt/app && git checkout qa
-cd /opt/app/sample-code && npm install
-
-# -----------------------------
-# Start PM2 with env file
-# -----------------------------
-# NOTE: PM2 intentionally runs as root in QA for simplicity
+cd /opt/app
+git checkout qa
+cd /opt/app/sample-code
+npm install
+ 
+# ------------------------------
+# Install PM2
+# ------------------------------
 npm install -g pm2
-
+ 
+# Verify pm2 is available
+pm2 --version
+ 
+# ------------------------------
+# FIX: Export env vars into the shell BEFORE starting PM2
+# --env-file flag is unreliable across PM2 versions.
+# This guarantees the app process inherits all DB vars.
+# ------------------------------
+set -a                    # auto-export all variables
+source /opt/app.env
+set +a                    # stop auto-export
+ 
+# ------------------------------
+# Start app with PM2
+# ------------------------------
+# Running from /opt/app/sample-code where npm install was done
 pm2 delete gcp-tf-sample-app || true
-pm2 start app.js \
-  --name gcp-tf-sample-app \
-  --env-file /opt/app.env
-
-pm2 startup systemd -u root --hp /root
+pm2 start app.js --name gcp-tf-sample-app
+ 
+# ------------------------------
+# FIX: Actually execute the pm2 startup command
+# (pm2 startup only PRINTS the command; you must pipe it to bash)
+# ------------------------------
+pm2 startup systemd -u root --hp /root | tail -n 1 | bash
+ 
 pm2 save
-
-# -----------------------------
+ 
+# ------------------------------
 # Verification
-# -----------------------------
+# ------------------------------
 node --version
 npm --version
 pm2 status
-
 echo "===== QA VM startup script completed successfully ====="
