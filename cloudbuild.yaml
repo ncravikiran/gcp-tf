@@ -7,9 +7,10 @@ steps:
     args:
       - '-c'
       - |
-        gcloud compute ssh root@${_VM_NAME} \
+        gcloud compute ssh ${_VM_USER}@${_VM_NAME} \
           --zone=${_VM_ZONE} \
           --tunnel-through-iap \
+          --ssh-flag="-o StrictHostKeyChecking=no" \
           --command='
             set -e
             echo "===== Deployment started ====="
@@ -37,6 +38,7 @@ steps:
 substitutions:
   _VM_NAME: 'YOUR_VM_NAME'
   _VM_ZONE: 'YOUR_VM_ZONE'   # e.g. us-central1-a
+  _VM_USER: 'YOUR_LINUX_USERNAME'
  
 options:
   logging: CLOUD_LOGGING_ONLY
