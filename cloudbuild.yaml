@@ -15,21 +15,14 @@ steps:
             set -e
             echo "===== Deployment started ====="
  
-            # Fix permissions on /opt/app
-            sudo mkdir -p /opt/app
-            sudo chown -R $USER:$USER /opt/app
- 
-            # Pull latest code
-            rm -rf /opt/app
-            git clone https://github.com/ncravikiran/gcp-tf.git /opt/app
+            sudo rm -rf /opt/app
+            sudo git clone https://github.com/ncravikiran/gcp-tf.git /opt/app
             cd /opt/app
-            git checkout cloud-build
+            sudo git checkout cloud-build
             cd /opt/app/sample-code
  
-            # Install dependencies
-            npm install
+            sudo npm install
  
-            # Load env vars and restart app
             set -a
             source /opt/app.env
             set +a
@@ -45,7 +38,7 @@ steps:
 substitutions:
   _VM_NAME: 'YOUR_VM_NAME'
   _VM_ZONE: 'YOUR_VM_ZONE'
-  _VM_USER: 'YOUR_LINUX_USERNAME'
+  _VM_USER: 'YOUR_USERNAME'
  
 options:
   logging: CLOUD_LOGGING_ONLY
