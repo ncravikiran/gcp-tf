@@ -28,7 +28,7 @@ steps:
             set +a
  
             sudo pm2 delete gcp-tf-sample-app || true
-            sudo pm2 start app.js --name gcp-tf-sample-app
+            sudo env $(cat /opt/app.env | xargs) pm2 start app.js --name gcp-tf-sample-app
             sudo pm2 save
  
             echo "===== Deployment complete ====="
