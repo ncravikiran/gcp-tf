@@ -24,7 +24,7 @@ steps:
             sudo npm install
  
             set -a
-            source /opt/app.env
+            source <(sudo cat /opt/app.env)
             set +a
  
             sudo pm2 delete gcp-tf-sample-app || true
