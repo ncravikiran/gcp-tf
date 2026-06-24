@@ -40,6 +40,10 @@ jobs:
       - name: Setup gcloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
+      - name: Install GKE auth plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin --quiet
+
       # ✅ Configure project
       - name: Configure gcloud
         run: |
