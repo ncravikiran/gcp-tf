@@ -1,5 +1,4 @@
-
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: Disk
 metadata:
   name: disk-123
