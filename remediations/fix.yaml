@@ -1,0 +1,7 @@
+
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Disk
+metadata:
+  name: disk-123
+spec:
+  deletionPolicy: Delete
