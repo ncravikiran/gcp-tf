@@ -1,0 +1,25 @@
+name: Apply Crossplane
+
+on:
+  pull_request:
+    branches: 
+      - agent
+    types: [closed]
+  workflow_dispatch:
+
+jobs:
+  apply:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Authenticate to GKE
+        run: |
+          gcloud auth activate-service-account --key-file=${{ secrets.GCP_SA_KEY }}
+          gcloud container clusters get-credentials <CLUSTER_NAME> --zone <ZONE>
+
+      - name: Apply manifests
+        run: kubectl apply -f crossplane/
