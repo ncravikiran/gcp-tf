@@ -7,6 +7,6 @@ spec:
   forProvider:
     size: 10
     type: pd-standard
-    zone: us-central1-a   # <-- update if needed
+    zone: us-central1-a
   providerConfigRef:
     name: gcp-provider
