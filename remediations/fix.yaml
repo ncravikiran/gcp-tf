@@ -5,8 +5,8 @@ metadata:
   name: disk-123
 spec:
   forProvider:
-    size: 10
+    sizeGb: 10
     type: pd-standard
     zone: us-central1-a   # <-- update if needed
   providerConfigRef:
-    name: gcp-provide
+    name: gcp-provider
