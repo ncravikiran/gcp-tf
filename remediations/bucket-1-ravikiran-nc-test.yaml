@@ -7,8 +7,5 @@ spec:
   forProvider:
     location: US
     uniformBucketLevelAccess: true
-    iamConfiguration:
-      uniformBucketLevelAccess:
-        enabled: true
   providerConfigRef:
     name: gcp-provider
