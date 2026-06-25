@@ -5,7 +5,7 @@ metadata:
   name: disk-123
 spec:
   forProvider:
-    sizeGb: 10
+    size: 10
     type: pd-standard
     zone: us-central1-a   # <-- update if needed
   providerConfigRef:
