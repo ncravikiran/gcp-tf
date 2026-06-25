@@ -1,0 +1,28 @@
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: bucket-1-ravikiran-nc-test
+spec:
+  forProvider:
+    location: US
+
+    uniformBucketLevelAccess: true
+
+    iamConfiguration:
+      uniformBucketLevelAccess:
+        enabled: true
+
+  providerConfigRef:
+    name: gcp-provider
+---
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: BucketIAMMember
+metadata:
+  name: bucket-1-public-access-test
+spec:
+  forProvider:
+    bucket: bucket-1-ravikiran-nc-test
+    role: roles/storage.objectViewer
+    member: allUsers   # ✅ This makes it PUBLIC
+  providerConfigRef:
+    name: gcp-provider
