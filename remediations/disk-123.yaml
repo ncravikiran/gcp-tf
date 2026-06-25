@@ -2,7 +2,7 @@
 apiVersion: compute.gcp.upbound.io/v1beta1
 kind: Disk
 metadata:
-  name: disk-456
+  name: disk-123
 spec:
   forProvider:
     size: 10
