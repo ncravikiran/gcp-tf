@@ -9,4 +9,4 @@ spec:
     type: pd-standard
     zone: us-central1-a   # <-- update if needed
   providerConfigRef:
-    name: gcp-provide
+    name: gcp-provider
