@@ -1,6 +1,12 @@
-apiVersion: compute.gcp.upbound.io/v1beta1
+
+apiVersion: compute.gcp.crossplane.io/v1beta1
 kind: Disk
 metadata:
   name: disk-123
 spec:
-  deletionPolicy: Delete
+  forProvider:
+    sizeGb: 10
+    type: pd-standard
+    zone: us-central1-a   # <-- update if needed
+  providerConfigRef:
+    name: gcp-provide
