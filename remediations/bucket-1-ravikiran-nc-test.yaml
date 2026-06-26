@@ -1,12 +1,10 @@
----
 apiVersion: storage.gcp.upbound.io/v1beta1
 kind: Bucket
 metadata:
   name: bucket-1-ravikiran-nc-test
 spec:
   forProvider:
-    location: US-CENTRAL1
-    storageClass: STANDARD
+    location: US
     uniformBucketLevelAccess: true
   providerConfigRef:
     name: gcp-provider
@@ -23,4 +21,4 @@ spec:
     member: allUsers
   providerConfigRef:
     name: gcp-provider
-``
+
