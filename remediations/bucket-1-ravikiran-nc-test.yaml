@@ -5,10 +5,11 @@ metadata:
   annotations:
     crossplane.io/external-name: bucket-1-ravikiran-nc-test
 spec:
+  providerConfigRef:
+    name: gcp-provider
   managementPolicies:
   - Observe
   - Update
   forProvider:
+    location: US-CENTRAL1
     publicAccessPrevention: enforced
-  providerConfigRef:
-    name: gcp-provider
