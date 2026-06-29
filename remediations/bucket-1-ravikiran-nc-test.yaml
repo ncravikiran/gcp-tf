@@ -1,0 +1,14 @@
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: bucket-1-ravikiran-nc-test
+  annotations:
+    crossplane.io/external-name: bucket-1-ravikiran-nc-test
+spec:
+  managementPolicies:
+  - Observe
+  - Update
+  forProvider:
+    publicAccessPrevention: enforced
+  providerConfigRef:
+    name: gcp-provider
