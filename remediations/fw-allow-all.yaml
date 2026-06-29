@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manual-review-fw-allow-all
+data:
+  message: "Manual review required - AI remediation failed"
