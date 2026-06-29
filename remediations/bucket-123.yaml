@@ -1,0 +1,22 @@
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: bucket-123
+  annotations:
+    crossplane.io/external-name: bucket-123
+spec:
+  forProvider:
+    project: sre-agent-hack
+    location: US
+    iamConfiguration:
+      uniformBucketLevelAccess:
+        enabled: true
+    website:
+      mainPageSuffix: ""
+      notFoundPage: ""
+  providerConfigRef:
+    name: gcp-provider
+  managementPolicies:
+  - Observe
+  - Update
+  - Delete
