@@ -1,0 +1,17 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Disk
+metadata:
+  name: disk-123
+  annotations:
+    remediation.io/action: delete
+    crossplane.io/external-name: disk-123
+spec:
+  providerConfigRef:
+    name: gcp-provider
+  managementPolicies:
+  - Observe
+  - Delete
+  forProvider:
+    zone: us-central1-a
+    size: 10
+    type: pd-balanced
