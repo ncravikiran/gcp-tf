@@ -85,8 +85,24 @@ jobs:
  
           for f in remediations/*.yaml; do
             if grep -q 'remediation.io/action: delete' "$f"; then
-              echo "$f is marked for deletion - waiting for Ready, then deleting"
-              kubectl wait --for=condition=Ready -f "$f" --timeout=180s
+              echo "$f is marked for deletion - checking sync status first"
+ 
+              # Give Crossplane a short window to reconcile, then inspect WHY
+              # it isn't synced rather than blindly waiting until timeout.
+              kubectl wait --for=condition=Synced -f "$f" --timeout=60s || true
+ 
+              message=$(kubectl get -f "$f" -o jsonpath='{.status.conditions[?(@.type=="Synced")].message}' 2>/dev/null || echo "")
+              echo "Synced condition message: $message"
+ 
+              if echo "$message" | grep -qiE "not found|404"; then
+                echo "Underlying GCP resource doesn't exist - nothing to delete in the cloud."
+                echo "Removing the local manifest object only."
+                kubectl delete -f "$f" --ignore-not-found
+                continue
+              fi
+ 
+              echo "Resource exists in GCP - waiting for Ready before deleting"
+              kubectl wait --for=condition=Ready -f "$f" --timeout=120s
               kubectl delete -f "$f"
             fi
           done
