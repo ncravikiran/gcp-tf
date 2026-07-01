@@ -1,4 +1,4 @@
-name: Apply CrossplaneRemediation
+name: Apply Crossplane Remediation
 
 on:
   pull_request:
