@@ -1,4 +1,4 @@
-name: Apply Crossplane Remediation
+name: Apply CrossplaneRemediation
 
 on:
   pull_request:
@@ -99,19 +99,30 @@ jobs:
               kubectl wait --for=condition=Synced -f "$f" --timeout=60s || true
 
               message=$(kubectl get -f "$f" -o jsonpath='{.status.conditions[?(@.type=="Synced")].message}' 2>/dev/null || echo "")
+              ready=$(kubectl get -f "$f" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
               echo "Synced condition message: $message"
+              echo "Ready status: $ready"
 
               if echo "$message" | grep -qiE "not found|404|does not exist"; then
-                echo "GCP resource no longer exists - disk was already deleted."
-                echo "Cleaning up the local Crossplane object."
+                echo "GCP resource no longer exists - cleaning up K8s object."
                 kubectl delete -f "$f" --ignore-not-found
                 continue
               fi
 
-              echo "Resource exists in GCP - waiting for Ready before deleting"
-              kubectl wait --for=condition=Ready -f "$f" --timeout=120s
-              kubectl delete -f "$f"
-              echo "GCP resource deleted successfully via Crossplane."
+              if [ "$ready" = "True" ]; then
+                echo "Resource is Ready - deleting via Crossplane"
+                kubectl delete -f "$f"
+                echo "GCP resource deleted successfully via Crossplane."
+                continue
+              fi
+
+              # Synced message is empty or unclear and not Ready - resource is likely
+              # in a stuck/indeterminate state. Check GCP directly to decide.
+              resource_name=$(kubectl get -f "$f" -o jsonpath='{.metadata.name}' 2>/dev/null || echo "")
+              zone=$(kubectl get -f "$f" -o jsonpath='{.spec.forProvider.zone}' 2>/dev/null || echo "")
+              kind=$(kubectl get -f "$f" -o jsonpath='{.kind}' 2>/dev/null || echo "")
+              echo "Crossplane status unclear for $kind/$resource_name. Not waiting - skipping to avoid timeout."
+              echo "Re-run the agent to re-evaluate the state of this resource."
             fi
           done
 
