@@ -1,0 +1,104 @@
+name: Validate Crossplane Remediation (PR check)
+
+# Runs on every PR that touches remediations/ - BEFORE merge.
+# This is what catches things like the `sizeGb` vs `size` field-name
+# mistake: kubectl apply --dry-run=server asks the actual Crossplane CRD
+# schema on the cluster "would you accept this?" without creating anything.
+on:
+  pull_request:
+    branches:
+      - agent
+    paths:
+      - "remediations/**.yaml"
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write   # needed to post a PASS/FAIL comment on the PR
+
+env:
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  GCP_ZONE: ${{ secrets.GCP_ZONE }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
+  GKE_LOCATION: ${{ secrets.GKE_LOCATION }}
+
+jobs:
+  dry-run-validate:
+    name: Dry-run validate changed manifests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Install GKE auth plugin
+        run: gcloud components install gke-gcloud-auth-plugin --quiet
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials "${{ env.GKE_CLUSTER }}" \
+            --zone "${{ env.GKE_LOCATION }}" \
+            --project "${{ env.GCP_PROJECT }}"
+
+      # Find only the YAML files this PR actually changed under remediations/
+      - name: Find changed manifests
+        id: changed
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'remediations/*.yaml')
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # The actual check: ask the cluster's real CRD schema if it would
+      # accept this manifest, without creating/modifying anything.
+      - name: Dry-run apply each changed manifest
+        id: dryrun
+        run: |
+          status=0
+          summary=""
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            echo "== Dry-run: $f =="
+            if output=$(kubectl apply --dry-run=server -f "$f" 2>&1); then
+              echo "$output"
+              summary="$summary\n✅ \`$f\` - valid"
+            else
+              echo "$output"
+              summary="$summary\n❌ \`$f\` - FAILED: $(echo "$output" | tail -n 3 | tr '\n' ' ')"
+              status=1
+            fi
+          done <<< "${{ steps.changed.outputs.files }}"
+
+          echo "summary<<EOF" >> "$GITHUB_OUTPUT"
+          echo -e "$summary" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          exit $status
+
+      # Post the result directly on the PR so reviewers see it without
+      # digging into Action logs.
+      - name: Comment result on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `${{ steps.dryrun.outputs.summary }}`;
+            const result = "${{ job.status }}" === "success" ? "✅ All manifests passed dry-run validation" : "❌ Dry-run validation failed";
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `### ${result}\n${summary}`
+            });
